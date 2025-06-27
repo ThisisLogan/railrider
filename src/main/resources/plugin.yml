@@ -1,0 +1,10 @@
+name: RailRider
+version: 1.1
+main: com.thisislogan.railrider.RailRider
+api-version: 1.13
+description: Spawn a minecart on rail with empty hand and ride it.
+author: thisislogan
+permissions:
+  railrider.use:
+    description: Allows player to spawn minecarts by right-clicking rails.
+    default: true
