@@ -19,7 +19,7 @@ public class RailRider extends JavaPlugin implements Listener {
   private final HashMap<UUID, Minecart> playerMinecarts = new HashMap<>();
   private final HashMap<UUID, Long> cooldowns = new HashMap<>();
 
-  private final int cooldownSeconds = 1; // Cooldown duration
+  private final int cooldownSeconds = 5; // Cooldown duration
 
   @Override
   public void onEnable() {
