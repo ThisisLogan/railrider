@@ -1,0 +1,22 @@
+# Maven target output
+/target/
+
+# IntelliJ IDEA project files
+/.idea/
+/*.iml
+
+# Eclipse project files
+.project
+.classpath
+.settings/
+
+# macOS system files
+.DS_Store
+
+# Logs
+*.log
+
+# Backup or temp files
+*.swp
+*.swo
+*~
