@@ -5,8 +5,6 @@ A simple Minecraft plugin that allows players to right-click rails with an empty
 ## Features
 
 - Spawn and ride a minecart by right-clicking on rails with an empty hand.
-- Cooldown of 5 seconds between uses.
-- Permission-based usage (`railrider.use`).
 - Automatically removes the minecart when the player exits it to keep the world clean.
 
 ## Installation
