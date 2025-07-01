@@ -1,6 +1,6 @@
 name: RailRider
-version: 2.0
+version: 3.0
 main: com.thisislogan.railrider.RailRider
-api-version: 1.13
+api-version: 1.21
 description: Spawn a minecart on rail with empty hand and ride it.
 author: _mayb

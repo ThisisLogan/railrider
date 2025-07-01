@@ -1,8 +1,15 @@
 package com.thisislogan.railrider;
 
+import com.sk89q.worldedit.bukkit.BukkitAdapter;
+import com.sk89q.worldedit.math.BlockVector3;
+import com.sk89q.worldguard.WorldGuard;
+import com.sk89q.worldguard.protection.ApplicableRegionSet;
+import com.sk89q.worldguard.protection.managers.RegionManager;
+import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import java.util.HashMap;
 import java.util.UUID;
 import org.bukkit.Bukkit;
+import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Minecart;
@@ -12,6 +19,7 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.vehicle.VehicleExitEvent;
+import org.bukkit.event.vehicle.VehicleUpdateEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.util.Vector;
 
@@ -21,6 +29,7 @@ public class RailRider extends JavaPlugin implements Listener {
 
   @Override
   public void onEnable() {
+    saveDefaultConfig();
     Bukkit.getPluginManager().registerEvents(this, this);
     getLogger().info("RailRider enabled!");
   }
@@ -34,6 +43,31 @@ public class RailRider extends JavaPlugin implements Listener {
     }
     playerMinecarts.clear();
     getLogger().info("RailRider disabled.");
+  }
+
+  public boolean isInMetroRegion(Location location) {
+    if (location == null || location.getWorld() == null) return false;
+
+    RegionManager regionManager =
+        WorldGuard.getInstance()
+            .getPlatform()
+            .getRegionContainer()
+            .get(BukkitAdapter.adapt(location.getWorld()));
+
+    if (regionManager == null) return false;
+
+    BlockVector3 position =
+        BlockVector3.at(location.getBlockX(), location.getBlockY(), location.getBlockZ());
+
+    ApplicableRegionSet regions = regionManager.getApplicableRegions(position);
+
+    for (ProtectedRegion region : regions) {
+      if (region.getId().toLowerCase().startsWith("metro")) {
+        return true;
+      }
+    }
+
+    return false;
   }
 
   @EventHandler
@@ -83,6 +117,30 @@ public class RailRider extends JavaPlugin implements Listener {
     Minecart cart = playerMinecarts.remove(uuid);
     if (cart != null && !cart.isDead()) {
       cart.remove();
+    }
+  }
+
+  @EventHandler
+  public void onVehicleUpdate(VehicleUpdateEvent event) {
+    if (!(event.getVehicle() instanceof Minecart)) return;
+    Minecart cart = (Minecart) event.getVehicle();
+
+    if (cart.getPassengers().isEmpty()) return;
+
+    if (isInMetroRegion(cart.getLocation())) {
+      if (!getConfig().getBoolean("metro-speed-boost.enabled", true)) return;
+
+      double maxSpeed = getConfig().getDouble("metro-speed-boost.max-speed", 0.6);
+      double boostFactor = getConfig().getDouble("metro-speed-boost.boost-factor", 1.1);
+
+      cart.setMaxSpeed(maxSpeed);
+
+      Vector velocity = cart.getVelocity();
+      if (velocity.length() > 0) {
+        cart.setVelocity(velocity.multiply(boostFactor));
+      }
+    } else {
+      cart.setMaxSpeed(0.4); // reset outside metro
     }
   }
 

@@ -1,0 +1,4 @@
+metro-speed-boost:
+  enabled: false
+  max-speed: 0.6
+  boost-factor: 1.1
