@@ -3,6 +3,10 @@ package com.thisislogan.railrider;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import org.bukkit.Location;
+import org.bukkit.Material;
+import org.bukkit.block.Block;
+import org.bukkit.block.BlockFace;
+import org.bukkit.block.data.Powerable;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Minecart;
 import org.bukkit.util.Vector;
@@ -55,6 +59,8 @@ final class SpeedController {
     }
 
     cart.setMaxSpeed(settings.maxSpeed());
+    if (settings.boostFactor() == 1.0 || !isOnPoweredRail(cart.getLocation())) return;
+
     Vector velocity = cart.getVelocity();
     double horizontalSpeed = Math.hypot(velocity.getX(), velocity.getZ());
     if (horizontalSpeed == 0) return;
@@ -62,5 +68,25 @@ final class SpeedController {
     double boostedSpeed = Math.min(horizontalSpeed * settings.boostFactor(), settings.maxSpeed());
     double scale = boostedSpeed / horizontalSpeed;
     cart.setVelocity(new Vector(velocity.getX() * scale, velocity.getY(), velocity.getZ() * scale));
+  }
+
+  private static boolean isOnPoweredRail(Location location) {
+    if (location == null || location.getWorld() == null) return false;
+
+    Block rail = location.getBlock();
+    // A cart on a slope can occupy the block immediately above its rail.
+    // Do not look below a rail already found at the cart's position.
+    if (!isRail(rail.getType())) rail = rail.getRelative(BlockFace.DOWN);
+
+    return rail.getType() == Material.POWERED_RAIL
+        && rail.getBlockData() instanceof Powerable powerable
+        && powerable.isPowered();
+  }
+
+  private static boolean isRail(Material material) {
+    return switch (material) {
+      case RAIL, POWERED_RAIL, DETECTOR_RAIL, ACTIVATOR_RAIL -> true;
+      default -> false;
+    };
   }
 }

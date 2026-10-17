@@ -1,5 +1,7 @@
 ## Speeds are in blocks per tick (multiply by 20 for blocks per second).
 ## Global settings override metro settings in every world. Restart after editing.
+## Both boost factors apply only on powered rails receiving redstone power.
+## Speed caps still apply elsewhere; other sections use vanilla coasting and braking.
 global-speed-boost:
   enabled: false
   max-speed: 0.6

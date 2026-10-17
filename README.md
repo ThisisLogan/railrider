@@ -45,10 +45,14 @@ Without WorldGuard, metro boosts are skipped with one startup warning when enabl
 Speed settings affect only occupied carts spawned by RailRider; ordinary player-placed carts
 are unaffected. `max-speed` is a finite positive horizontal speed in **blocks per tick**:
 `0.4` is 8 blocks/second and `0.6` is 12 blocks/second at 20 ticks/second.
-`boost-factor` multiplies moving carts' horizontal speed each update, capped at `max-speed`.
-Use `1.0` for no additional acceleration. Stationary carts stay stationary, and vertical
-velocity is preserved. Normal rail physics still affect travel; the cap is not a constant
-cruising speed.
+`boost-factor` multiplies moving carts' horizontal speed each update **only on powered rails
+receiving redstone power**, capped at `max-speed`. This applies to both global and metro
+boosts. The selected speed cap still applies throughout the configured area. On ordinary,
+detector, activator, and unpowered powered rails, and off track, the plugin leaves velocity
+untouched so vanilla coasting, friction, and braking operate normally.
+Use `1.0` for no additional acceleration. The plugin does not propel stationary carts;
+vanilla powered-rail starting behavior still applies. Boosts preserve vertical velocity.
+Normal rail physics still affect travel; the cap is not a constant cruising speed.
 
 Maximum speeds must be positive and boost factors at least `1.0`; both must be finite.
 Invalid numeric settings produce one warning per setting at startup and use the defaults
@@ -59,5 +63,6 @@ configuration files are not overwritten: add the global section above to enable 
 
 `mvn clean verify` runs focused speed-policy tests and builds the plugin. Before deploying,
 smoke-test on a 26.3 server both with and without WorldGuard: spawn and ride carts, cross
-metro boundaries, test slopes and stationary carts, and verify cleanup on dismount,
+metro boundaries, test energized powered-rail acceleration, ordinary-rail coasting,
+unpowered powered-rail braking, slopes, and stationary carts, and verify cleanup on dismount,
 disconnect, and server shutdown. Check that player-placed carts are unaffected.
