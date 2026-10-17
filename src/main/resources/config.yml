@@ -1,3 +1,11 @@
+## Speeds are in blocks per tick (multiply by 20 for blocks per second).
+## Global settings override metro settings in every world. Restart after editing.
+global-speed-boost:
+  enabled: false
+  max-speed: 0.6
+  boost-factor: 1.1
+
+## Requires WorldGuard and WorldEdit; matches region names starting with "metro".
 metro-speed-boost:
   enabled: false
   max-speed: 0.6
