@@ -5,8 +5,6 @@ import static org.junit.jupiter.api.Assertions.*;
 import java.lang.reflect.Proxy;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Predicate;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.World;
@@ -23,81 +21,45 @@ class SpeedControllerTest {
   private final List<String> warnings = new ArrayList<>();
   private final Cart cart = new Cart();
 
-  private SpeedController controller(Predicate<Location> regions) {
-    return new SpeedController(config, warnings::add, regions);
+  private SpeedController controller() {
+    return new SpeedController(config, warnings::add);
   }
 
-  private void enable(String mode, double speed, double factor) {
-    config.set(mode + ".enabled", true);
-    config.set(mode + ".max-speed", speed);
-    config.set(mode + ".boost-factor", factor);
-  }
-
-  @Test
-  void globalOverridesMetroAndSkipsRegionLookup() {
-    enable("global-speed-boost", 0.8, 2);
-    enable("metro-speed-boost", 0.5, 1.1);
-    cart.velocity = new Vector(0.5, 0, 0);
-    controller(location -> { throw new AssertionError("Global mode must skip region lookup"); })
-        .update(cart.entity, true);
-    assertEquals(0.8, cart.maxSpeed);
-    assertEquals(0.8, cart.velocity.getX(), 1e-12);
+  private void configure(double blocksPerSecond, double boostFactor) {
+    config.set("max-speed-blocks-per-second", blocksPerSecond);
+    config.set("powered-rail-boost-factor", boostFactor);
   }
 
   @Test
-  void metroAppliesInsideRegionAndResetsOutside() {
-    enable("metro-speed-boost", 0.7, 2);
-    AtomicBoolean inside = new AtomicBoolean(true);
-    SpeedController controller = controller(location -> inside.get());
-    cart.velocity = new Vector(0.3, 0.2, 0);
-    controller.update(cart.entity, true);
-    assertEquals(0.7, cart.maxSpeed);
-    assertEquals(0.6, cart.velocity.getX(), 1e-12);
-    inside.set(false);
-    controller.update(cart.entity, true);
-    assertEquals(0.4, cart.maxSpeed);
-    assertEquals(0.6, cart.velocity.getX(), 1e-12);
-    assertEquals(0.2, cart.velocity.getY());
-    assertEquals(1, cart.velocityWrites);
-  }
-
-  @Test
-  void missingTogglesAreDisabledAndDoNotQueryRegions() {
-    controller(location -> { throw new AssertionError("Metro mode is disabled"); })
-        .update(cart.entity, true);
+  void missingSettingsUseVanilla() {
+    cart.velocity = new Vector(0.2, 0, 0);
+    controller().update(cart.entity, true);
     assertEquals(0.4, cart.maxSpeed);
     assertEquals(0, cart.velocityWrites);
     assertTrue(warnings.isEmpty());
   }
 
   @Test
-  void explicitlyDisabledMetroUsesDefaultEvenInsideRegion() {
-    config.set("metro-speed-boost.enabled", false);
-    controller(location -> true).update(cart.entity, true);
-    assertEquals(0.4, cart.maxSpeed);
-  }
-
-  @Test
   void ordinaryCartsAreNotReadOrChanged() {
-    enable("global-speed-boost", 0.8, 2);
-    controller(null).update(cart.entity, false);
+    configure(16, 2);
+    controller().update(cart.entity, false);
     assertEquals(0, cart.calls);
   }
 
   @Test
   void emptyTrackedCartsAreNotChanged() {
-    enable("global-speed-boost", 0.8, 2);
+    configure(16, 2);
     cart.occupied = false;
-    controller(null).update(cart.entity, true);
+    controller().update(cart.entity, true);
     assertEquals(-1, cart.maxSpeed);
     assertEquals(0, cart.velocityWrites);
   }
 
   @Test
   void boostPreservesHorizontalDirectionAndVerticalVelocity() {
-    enable("global-speed-boost", 0.6, 2);
+    configure(12, 3);
     cart.velocity = new Vector(-0.3, -0.2, 0.4);
-    controller(null).update(cart.entity, true);
+    controller().update(cart.entity, true);
     assertEquals(-0.36, cart.velocity.getX(), 1e-12);
     assertEquals(0.48, cart.velocity.getZ(), 1e-12);
     assertEquals(-0.2, cart.velocity.getY());
@@ -106,16 +68,16 @@ class SpeedControllerTest {
 
   @Test
   void movingCartAcceleratesBelowCap() {
-    enable("global-speed-boost", 0.6, 1.1);
+    configure(12, 1.5);
     cart.velocity = new Vector(0.2, 0, 0);
-    controller(null).update(cart.entity, true);
-    assertEquals(0.22, cart.velocity.getX(), 1e-12);
+    controller().update(cart.entity, true);
+    assertEquals(0.23, cart.velocity.getX(), 1e-12);
   }
 
   @Test
   void stationaryAndVerticalOnlyCartsAreNotPropelled() {
-    enable("global-speed-boost", 0.6, 2);
-    SpeedController controller = controller(null);
+    configure(12, 2);
+    SpeedController controller = controller();
     controller.update(cart.entity, true);
     cart.velocity = new Vector(0, 0.2, 0);
     controller.update(cart.entity, true);
@@ -124,36 +86,16 @@ class SpeedControllerTest {
   }
 
   @Test
-  void globalWorksWithoutWorldGuardAndMissingMetroWarnsOnlyAtStartup() {
-    enable("global-speed-boost", 0.9, 1.1);
-    enable("metro-speed-boost", 0.7, 1.1);
-    SpeedController controller = controller(null);
-    controller.update(cart.entity, true);
-    controller.update(cart.entity, true);
-    assertEquals(0.9, cart.maxSpeed);
-    assertEquals(1, warnings.size());
-  }
-
-  @Test
-  void unavailableMetroFallsBackToDefault() {
-    enable("metro-speed-boost", 0.7, 1.1);
-    controller(null).update(cart.entity, true);
-    assertEquals(0.4, cart.maxSpeed);
-    assertEquals(1, warnings.size());
-  }
-
-  @Test
-  void invalidNumbersUseDefaultsAndWarnOncePerSetting() {
+  void invalidNumbersUseVanillaAndWarnOncePerSetting() {
     for (Object invalid : List.of(-1, 0, Double.NaN, Double.POSITIVE_INFINITY, "fast")) {
       warnings.clear();
-      enable("global-speed-boost", 0.9, 2);
-      config.set("global-speed-boost.max-speed", invalid);
-      config.set("global-speed-boost.boost-factor", invalid);
+      config.set("max-speed-blocks-per-second", invalid);
+      config.set("powered-rail-boost-factor", invalid);
       cart.velocity = new Vector(0.2, 0, 0);
-      SpeedController controller = controller(null);
+      SpeedController controller = controller();
       controller.update(cart.entity, true);
-      assertEquals(0.6, cart.maxSpeed);
-      assertEquals(0.22, cart.velocity.getX(), 1e-12);
+      assertEquals(0.4, cart.maxSpeed);
+      assertEquals(0.2, cart.velocity.getX());
       controller.update(cart.entity, true);
       assertEquals(2, warnings.size());
     }
@@ -161,63 +103,60 @@ class SpeedControllerTest {
 
   @Test
   void factorOneIsAllowedButFactorsBelowOneAreRejected() {
-    enable("global-speed-boost", 0.9, 1);
+    configure(18, 1);
     cart.velocity = new Vector(0.2, 0, 0);
-    controller(null).update(cart.entity, true);
+    controller().update(cart.entity, true);
     assertEquals(0.2, cart.velocity.getX());
     assertEquals(0, cart.velocityWrites);
     assertTrue(warnings.isEmpty());
-    config.set("global-speed-boost.boost-factor", 0.9);
-    controller(null).update(cart.entity, true);
-    assertEquals(0.22, cart.velocity.getX(), 1e-12);
+    config.set("powered-rail-boost-factor", 0.9);
+    controller().update(cart.entity, true);
+    assertEquals(0.2, cart.velocity.getX());
+    assertEquals(0, cart.velocityWrites);
     assertEquals(1, warnings.size());
   }
 
   @Test
-  void bothModesBoostOnlyOnEnergizedPoweredRails() {
-    for (String mode : List.of("global-speed-boost", "metro-speed-boost")) {
-      config.set("global-speed-boost.enabled", false);
-      config.set("metro-speed-boost.enabled", false);
-      enable(mode, 0.8, 1.2);
-      SpeedController controller = controller(location -> true);
-      for (Material material : List.of(Material.RAIL, Material.POWERED_RAIL,
-          Material.DETECTOR_RAIL, Material.ACTIVATOR_RAIL, Material.AIR)) {
-        for (boolean powered : List.of(false, true)) {
-          cart.rail.material = material;
-          cart.rail.powered = powered;
-          cart.velocity = new Vector(0.2, 0.1, 0);
-          cart.velocityWrites = 0;
-          controller.update(cart.entity, true);
-          boolean boosts = material == Material.POWERED_RAIL && powered;
-          assertEquals(boosts ? 0.24 : 0.2, cart.velocity.getX(), 1e-12,
-              mode + ": " + material + ", powered=" + powered);
-          assertEquals(boosts ? 1 : 0, cart.velocityWrites);
-          assertEquals(0.8, cart.maxSpeed);
-          assertEquals(0.1, cart.velocity.getY());
-        }
+  void boostsOnlyOnEnergizedPoweredRails() {
+    configure(16, 1.5);
+    SpeedController controller = controller();
+    for (Material material : List.of(Material.RAIL, Material.POWERED_RAIL,
+        Material.DETECTOR_RAIL, Material.ACTIVATOR_RAIL, Material.AIR)) {
+      for (boolean powered : List.of(false, true)) {
+        cart.rail.material = material;
+        cart.rail.powered = powered;
+        cart.velocity = new Vector(0.2, 0.1, 0);
+        cart.velocityWrites = 0;
+        controller.update(cart.entity, true);
+        boolean boosts = material == Material.POWERED_RAIL && powered;
+        assertEquals(boosts ? 0.23 : 0.2, cart.velocity.getX(), 1e-12,
+            material + ", powered=" + powered);
+        assertEquals(boosts ? 1 : 0, cart.velocityWrites);
+        assertEquals(0.8, cart.maxSpeed);
+        assertEquals(0.1, cart.velocity.getY());
       }
     }
   }
 
   @Test
   void slopeRailOneBlockBelowCartCanBoost() {
-    enable("global-speed-boost", 0.8, 1.2);
+    configure(16, 1.5);
     cart.rail.material = Material.AIR;
     cart.below.material = Material.POWERED_RAIL;
     cart.below.powered = true;
     cart.velocity = new Vector(0.2, 0.2, 0);
-    controller(null).update(cart.entity, true);
-    assertEquals(0.24, cart.velocity.getX(), 1e-12);
+    controller().update(cart.entity, true);
+    assertEquals(0.23, cart.velocity.getX(), 1e-12);
     assertEquals(0.2, cart.velocity.getY());
     assertEquals(1, cart.rail.belowReads);
   }
 
   @Test
   void firstRailPreventsBoostFromUnrelatedPoweredRailBelow() {
-    enable("global-speed-boost", 0.8, 1.2);
+    configure(16, 1.5);
     cart.below.material = Material.POWERED_RAIL;
     cart.below.powered = true;
-    SpeedController controller = controller(null);
+    SpeedController controller = controller();
     for (Material material : List.of(Material.RAIL, Material.POWERED_RAIL,
         Material.DETECTOR_RAIL, Material.ACTIVATOR_RAIL)) {
       cart.rail.material = material;
@@ -231,10 +170,10 @@ class SpeedControllerTest {
 
   @Test
   void onlyOneBlockBelowIsChecked() {
-    enable("global-speed-boost", 0.8, 1.2);
+    configure(16, 1.5);
     cart.rail.material = Material.AIR;
     cart.velocity = new Vector(0.2, 0, 0);
-    controller(null).update(cart.entity, true);
+    controller().update(cart.entity, true);
     assertEquals(0, cart.velocityWrites);
     assertEquals(1, cart.rail.belowReads);
     assertEquals(0, cart.below.belowReads);
@@ -242,18 +181,18 @@ class SpeedControllerTest {
 
   @Test
   void leavingPoweredRailStopsBoostWithoutChangingCapOrMomentum() {
-    enable("global-speed-boost", 0.8, 1.2);
-    SpeedController controller = controller(null);
+    configure(16, 2);
+    SpeedController controller = controller();
     cart.velocity = new Vector(0.5, 0, 0);
     controller.update(cart.entity, true);
-    assertEquals(0.6, cart.velocity.getX(), 1e-12);
+    assertEquals(0.56, cart.velocity.getX(), 1e-12);
     cart.rail.material = Material.RAIL;
     controller.update(cart.entity, true);
     cart.rail.material = Material.POWERED_RAIL;
     cart.rail.powered = false;
     controller.update(cart.entity, true);
     assertEquals(0.8, cart.maxSpeed);
-    assertEquals(0.6, cart.velocity.getX(), 1e-12);
+    assertEquals(0.56, cart.velocity.getX(), 1e-12);
     assertEquals(1, cart.velocityWrites);
     // The fake has no physics; an unchanged vector proves the plugin leaves
     // natural friction and braking to the server on these sections.
@@ -261,10 +200,10 @@ class SpeedControllerTest {
 
   @Test
   void ordinaryRailDoesNotClampStoredVelocityToMovementCap() {
-    enable("global-speed-boost", 0.8, 1.2);
+    configure(16, 1.5);
     cart.rail.material = Material.RAIL;
     cart.velocity = new Vector(1.0, 0.2, 0);
-    controller(null).update(cart.entity, true);
+    controller().update(cart.entity, true);
     assertEquals(0.8, cart.maxSpeed);
     assertEquals(new Vector(1.0, 0.2, 0), cart.velocity);
     assertEquals(0, cart.velocityWrites);

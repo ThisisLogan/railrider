@@ -2,9 +2,7 @@ package com.thisislogan.railrider;
 
 import java.util.HashMap;
 import java.util.UUID;
-import java.util.function.Predicate;
 import org.bukkit.Bukkit;
-import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Minecart;
@@ -21,16 +19,12 @@ import org.bukkit.util.Vector;
 public class RailRider extends JavaPlugin implements Listener {
 
   private final HashMap<UUID, Minecart> playerMinecarts = new HashMap<>();
-  private Predicate<Location> metroRegions;
   private SpeedController speedController;
 
   @Override
   public void onEnable() {
     saveDefaultConfig();
-    if (Bukkit.getPluginManager().isPluginEnabled("WorldGuard")) {
-      metroRegions = new WorldGuardRegions();
-    }
-    speedController = new SpeedController(getConfig(), getLogger()::warning, metroRegions);
+    speedController = new SpeedController(getConfig(), getLogger()::warning);
     Bukkit.getPluginManager().registerEvents(this, this);
     getLogger().info("RailRider enabled!");
   }
@@ -44,10 +38,6 @@ public class RailRider extends JavaPlugin implements Listener {
     }
     playerMinecarts.clear();
     getLogger().info("RailRider disabled.");
-  }
-
-  public boolean isInMetroRegion(Location location) {
-    return metroRegions != null && metroRegions.test(location);
   }
 
   @EventHandler
