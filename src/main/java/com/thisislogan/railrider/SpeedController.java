@@ -1,7 +1,6 @@
 package com.thisislogan.railrider;
 
 import java.util.function.Consumer;
-import java.util.function.Predicate;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
@@ -12,28 +11,23 @@ import org.bukkit.entity.Minecart;
 import org.bukkit.util.Vector;
 
 final class SpeedController {
-  private record Settings(boolean enabled, double maxSpeed, double boostFactor) {}
+  private static final double TICKS_PER_SECOND = 20;
+  // Speed vanilla adds each tick a cart spends on an energized powered rail, in blocks per tick.
+  private static final double VANILLA_POWERED_RAIL_BOOST = 0.06;
+  private static final double VANILLA_MAX_SPEED_BLOCKS_PER_SECOND = 8;
 
-  private static final Settings DEFAULT = new Settings(true, 0.4, 1.0);
-  private final Settings global;
-  private final Settings metro;
-  private final Predicate<Location> metroRegion;
+  private final double maxSpeed;
+  private final double extraBoost;
 
-  SpeedController(ConfigurationSection config, Consumer<String> warning,
-      Predicate<Location> metroRegion) {
-    global = readSettings(config, "global-speed-boost", warning);
-    metro = readSettings(config, "metro-speed-boost", warning);
-    this.metroRegion = metroRegion;
-    if (metro.enabled() && metroRegion == null) {
-      warning.accept("Metro speed boost is enabled but WorldGuard is unavailable; skipping metro boosts.");
+  SpeedController(ConfigurationSection config, Consumer<String> warning) {
+    if (config.contains("global-speed-boost") || config.contains("metro-speed-boost")) {
+      warning.accept("global-speed-boost and metro-speed-boost are no longer supported; use "
+          + "max-speed-blocks-per-second and powered-rail-boost-factor.");
     }
-  }
-
-  private static Settings readSettings(ConfigurationSection config, String path,
-      Consumer<String> warning) {
-    return new Settings(config.getBoolean(path + ".enabled", false),
-        readNumber(config, path + ".max-speed", 0.6, true, warning),
-        readNumber(config, path + ".boost-factor", 1.1, false, warning));
+    maxSpeed = readNumber(config, "max-speed-blocks-per-second",
+        VANILLA_MAX_SPEED_BLOCKS_PER_SECOND, true, warning) / TICKS_PER_SECOND;
+    extraBoost = (readNumber(config, "powered-rail-boost-factor", 1, false, warning) - 1)
+        * VANILLA_POWERED_RAIL_BOOST;
   }
 
   private static double readNumber(ConfigurationSection config, String path, double fallback,
@@ -51,21 +45,14 @@ final class SpeedController {
   void update(Minecart cart, boolean tracked) {
     if (!tracked || cart.getPassengers().isEmpty()) return;
 
-    Settings settings = DEFAULT;
-    if (global.enabled()) {
-      settings = global;
-    } else if (metro.enabled() && metroRegion != null && metroRegion.test(cart.getLocation())) {
-      settings = metro;
-    }
-
-    cart.setMaxSpeed(settings.maxSpeed());
-    if (settings.boostFactor() == 1.0 || !isOnPoweredRail(cart.getLocation())) return;
+    cart.setMaxSpeed(maxSpeed);
+    if (extraBoost == 0 || !isOnPoweredRail(cart.getLocation())) return;
 
     Vector velocity = cart.getVelocity();
     double horizontalSpeed = Math.hypot(velocity.getX(), velocity.getZ());
     if (horizontalSpeed == 0) return;
 
-    double boostedSpeed = Math.min(horizontalSpeed * settings.boostFactor(), settings.maxSpeed());
+    double boostedSpeed = Math.min(horizontalSpeed + extraBoost, maxSpeed);
     double scale = boostedSpeed / horizontalSpeed;
     cart.setVelocity(new Vector(velocity.getX() * scale, velocity.getY(), velocity.getZ() * scale));
   }

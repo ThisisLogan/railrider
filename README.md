@@ -17,52 +17,34 @@ Requires Minecraft **26.3** (Spigot or Paper), **Java 25**, and Maven to build.
    mvn clean verify
    ```
 2. Copy `target/railrider-3.1.jar` into your server's `plugins` folder and restart.
-3. For metro-region boosts, also install WorldGuard **7.0.19** and a Minecraft 26.3-compatible
-   WorldEdit Bukkit release. Both are optional for spawning carts and using global speed.
 
 ## Speed configuration
 
 Edit `plugins/RailRider/config.yml` and restart the server to apply changes:
 
 ```yaml
-global-speed-boost:
-  enabled: false
-  max-speed: 0.6
-  boost-factor: 1.1
-
-metro-speed-boost:
-  enabled: false
-  max-speed: 0.6
-  boost-factor: 1.1
+max-speed-blocks-per-second: 8
+powered-rail-boost-factor: 1
 ```
 
-Set `global-speed-boost.enabled: true` to use its custom speed throughout **every world**,
-including metro regions. It takes priority over metro settings. Otherwise, enabled metro
-settings apply inside WorldGuard regions whose names start with `metro` (case insensitive).
-Outside those regions, or with both toggles disabled, the cap is `0.4` with no added boost.
-Without WorldGuard, metro boosts are skipped with one startup warning when enabled.
+Both settings default to vanilla and affect only occupied carts spawned by RailRider;
+ordinary player-placed carts are unaffected.
 
-Speed settings affect only occupied carts spawned by RailRider; ordinary player-placed carts
-are unaffected. `max-speed` is a finite positive horizontal speed in **blocks per tick**:
-`0.4` is 8 blocks/second and `0.6` is 12 blocks/second at 20 ticks/second.
-`boost-factor` multiplies moving carts' horizontal speed each update **only on powered rails
-receiving redstone power**, capped at `max-speed`. This applies to both global and metro
-boosts. The selected speed cap still applies throughout the configured area. On ordinary,
-detector, activator, and unpowered powered rails, and off track, the plugin leaves velocity
-untouched so vanilla coasting, friction, and braking operate normally.
-Use `1.0` for no additional acceleration. The plugin does not propel stationary carts;
-vanilla powered-rail starting behavior still applies. Boosts preserve vertical velocity.
-Normal rail physics still affect travel; the cap is not a constant cruising speed.
+`max-speed-blocks-per-second` caps horizontal speed. Vanilla is `8`; it must be positive.
 
-Maximum speeds must be positive and boost factors at least `1.0`; both must be finite.
-Invalid numeric settings produce one warning per setting at startup and use the defaults
-above. Existing metro settings are preserved; missing toggles default to disabled. Existing
-configuration files are not overwritten: add the global section above to enable it.
+`powered-rail-boost-factor` is a multiple of vanilla's acceleration on powered rails receiving
+redstone power: `2` accelerates twice as hard as vanilla, `1` is vanilla. It must be at least
+`1`. Elsewhere the plugin leaves velocity untouched, so vanilla coasting, friction, and
+braking apply. It does not propel stationary carts and preserves vertical velocity.
+
+Invalid values produce one warning per setting at startup and fall back to vanilla. Existing
+configuration files are not overwritten; the old `global-speed-boost` and `metro-speed-boost`
+sections are ignored with a startup warning.
 
 ## Validation
 
 `mvn clean verify` runs focused speed-policy tests and builds the plugin. Before deploying,
-smoke-test on a 26.3 server both with and without WorldGuard: spawn and ride carts, cross
-metro boundaries, test energized powered-rail acceleration, ordinary-rail coasting,
-unpowered powered-rail braking, slopes, and stationary carts, and verify cleanup on dismount,
-disconnect, and server shutdown. Check that player-placed carts are unaffected.
+smoke-test on a 26.3 server: spawn and ride carts, test energized powered-rail acceleration,
+ordinary-rail coasting, unpowered powered-rail braking, slopes, and stationary carts, and
+verify cleanup on dismount, disconnect, and server shutdown. Check that player-placed carts
+are unaffected.
